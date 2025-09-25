@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-dotenv
+livekit
+livekit-agents
+livekit-api
+livekit-plugins-deepgram
+livekit-plugins-cartesia
+openai
+python-multipart
+asyncio-mqtt
+google-generativeai
+numpy

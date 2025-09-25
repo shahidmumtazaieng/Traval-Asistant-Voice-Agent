@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Assistant - VoyageAI</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.7.0/p5.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=Inter:wght@300;400;500;600&family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --primary: #1a365d;
+            --secondary: #ff6b6b;
+            --accent: #feca57;
+            --neutral: #f7fafc;
+            --text: #2d3748;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .glass-nav {
+            backdrop-filter: blur(10px);
+            background: rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .voice-interface {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        
+        .assistant-avatar {
+            animation: breathe 3s ease-in-out infinite;
+        }
+        
+        @keyframes breathe {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .listening {
+            animation: listening-pulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes listening-pulse {
+            0%, 100% { 
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7);
+            }
+            50% { 
+                transform: scale(1.1);
+                box-shadow: 0 0 0 20px rgba(255, 107, 107, 0);
+            }
+        }
+        
+        .waveform {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 60px;
+            gap: 2px;
+        }
+        
+        .wave-bar {
+            width: 4px;
+            background: linear-gradient(45deg, var(--secondary), var(--accent));
+            border-radius: 2px;
+            animation: wave 1.5s ease-in-out infinite;
+        }
+        
+        .wave-bar:nth-child(1) { animation-delay: 0s; }
+        .wave-bar:nth-child(2) { animation-delay: 0.1s; }
+        .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+        .wave-bar:nth-child(4) { animation-delay: 0.3s; }
+        .wave-bar:nth-child(5) { animation-delay: 0.4s; }
+        .wave-bar:nth-child(6) { animation-delay: 0.5s; }
+        .wave-bar:nth-child(7) { animation-delay: 0.6s; }
+        
+        @keyframes wave {
+            0%, 100% { height: 10px; }
+            50% { height: 40px; }
+        }
+        
+        .chat-bubble {
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        
+        .user-message {
+            background: linear-gradient(45deg, var(--secondary), var(--accent));
+            color: white;
+            border-radius: 18px 18px 4px 18px;
+            margin-left: auto;
+        }
+        
+        .assistant-message {
+            background: rgba(255, 255, 255, 0.9);
+            color: var(--text);
+            border-radius: 18px 18px 18px 4px;
+            margin-right: auto;
+        }
+        
+        .typing-indicator {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            padding: 12px 16px;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 18px 18px 18px 4px;
+            margin-right: auto;
+            width: fit-content;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--secondary);
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+        .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+        
+        @keyframes typing {
+            0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+            40% { transform: scale(1); opacity: 1; }
+        }
+        
+        .command-button {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .command-button:hover {
+            background: var(--secondary);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(255, 107, 107, 0.3);
+        }
+        
+        .travel-tool {
+            background: rgba(255, 255, 255, 0.9);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+        
+        .travel-tool:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        #background-animation {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="background-animation"></div>
+    
+    <!-- Navigation -->
+    <nav class="glass-nav fixed w-full top-0 z-50 py-4">
+        <div class="container mx-auto px-6 flex items-center justify-between">
+            <a href="index.html" class="flex items-center space-x-2">
+                <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                    <span class="text-white font-bold text-lg">V</span>
+                </div>
+                <span class="text-white font-bold text-xl font-serif">VoyageAI</span>
+            </a>
+            
+            <div class="text-white">
+                <a href="index.html" class="hover:text-yellow-300 transition-colors">← Back to Home</a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="pt-24 pb-12 min-h-screen">
+        <div class="container mx-auto px-6">
+            <!-- Header Section -->
+            <div class="text-center mb-12">
+                <h1 class="text-5xl font-bold text-white mb-4 font-serif">Meet Your AI Travel Assistant</h1>
+                <p class="text-xl text-white opacity-90 max-w-3xl mx-auto">
+                    Simply speak your travel dreams and watch as our AI creates the perfect journey for you. No typing, no searching - just natural conversation.
+                </p>
+            </div>
+
+            <div class="grid lg:grid-cols-3 gap-8">
+                <!-- Voice Interface -->
+                <div class="lg:col-span-2">
+                    <div class="voice-interface rounded-3xl p-8 h-full">
+                        <!-- Assistant Introduction -->
+                        <div class="text-center mb-8">
+                            <div class="assistant-avatar w-24 h-24 mx-auto mb-4 rounded-full overflow-hidden">
+                                <img src="resources/assistant-avatar.png" alt="AI Assistant" class="w-full h-full object-cover">
+                            </div>
+                            <h2 class="text-2xl font-bold text-gray-800 mb-2">Hello! I'm your travel assistant</h2>
+                            <p class="text-gray-600">I'm here to help you plan the perfect trip. Just click the microphone and start talking!</p>
+                        </div>
+
+                        <!-- Chat Interface -->
+                        <div class="mb-8">
+                            <div id="chat-messages" class="space-y-4 h-64 overflow-y-auto mb-4 p-4 bg-gray-50 rounded-2xl">
+                                <div class="assistant-message chat-bubble p-4">
+                                    <p>Hi there! I'm excited to help you plan your next adventure. What kind of trip are you looking for? You can say things like:</p>
+                                    <ul class="mt-2 text-sm space-y-1">
+                                        <li>• "I want to go to Paris in December"</li>
+                                        <li>• "Find me a beach vacation under $2000"</li>
+                                        <li>• "Plan a family trip to Disney World"</li>
+                                        <li>• "What are the best ski resorts in Europe?"</li>
+                                    </ul>
+                                </div>
+                            </div>
+
+                            <!-- Typing Indicator -->
+                            <div id="typing-indicator" class="typing-indicator hidden">
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <div class="typing-dot"></div>
+                                <span class="ml-2 text-sm text-gray-500">Assistant is typing...</span>
+                            </div>
+                        </div>
+
+                        <!-- Voice Controls -->
+                        <div class="text-center">
+                            <button id="voice-button" class="w-20 h-20 bg-gradient-to-r from-pink-500 to-yellow-500 rounded-full text-white text-2xl hover:shadow-xl transition-all mb-4">
+                                🎤
+                            </button>
+                            <p class="text-gray-600 mb-4">Click to start speaking</p>
+                            
+                            <!-- Waveform Visualization -->
+                            <div id="waveform" class="waveform hidden">
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                                <div class="wave-bar"></div>
+                            </div>
+                        </div>
+
+                        <!-- Quick Commands -->
+                        <div class="mt-8">
+                            <h3 class="text-lg font-semibold text-gray-800 mb-4">Try saying:</h3>
+                            <div class="grid sm:grid-cols-2 gap-3">
+                                <button onclick="sendQuickCommand('Find me a beach vacation')" class="command-button px-4 py-3 rounded-xl text-left">
+                                    🏖️ "Find me a beach vacation"
+                                </button>
+                                <button onclick="sendQuickCommand('Plan a trip to Tokyo')" class="command-button px-4 py-3 rounded-xl text-left">
+                                    🗼 "Plan a trip to Tokyo"
+                                </button>
+                                <button onclick="sendQuickCommand('Best time to visit Paris')" class="command-button px-4 py-3 rounded-xl text-left">
+                                    🥐 "Best time to visit Paris"
+                                </button>
+                                <button onclick="sendQuickCommand('Family-friendly resorts')" class="command-button px-4 py-3 rounded-xl text-left">
+                                    👨‍👩‍👧‍👦 "Family-friendly resorts"
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Travel Tools Sidebar -->
+                <div class="space-y-6">
+                    <!-- Interactive Calendar -->
+                    <div class="travel-tool rounded-2xl p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                            📅 Travel Calendar
+                        </h3>
+                        <div id="travel-calendar" class="text-center">
+                            <p class="text-gray-600 mb-4">Select your travel dates</p>
+                            <div class="grid grid-cols-7 gap-1 text-sm">
+                                <div class="font-semibold p-2">S</div>
+                                <div class="font-semibold p-2">M</div>
+                                <div class="font-semibold p-2">T</div>
+                                <div class="font-semibold p-2">W</div>
+                                <div class="font-semibold p-2">T</div>
+                                <div class="font-semibold p-2">F</div>
+                                <div class="font-semibold p-2">S</div>
+                                <!-- Calendar days will be generated by JavaScript -->
+                                <div id="calendar-days"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Budget Calculator -->
+                    <div class="travel-tool rounded-2xl p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                            💰 Budget Calculator
+                        </h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Trip Budget</label>
+                                <input type="range" id="budget-slider" min="500" max="10000" value="2500" 
+                                       class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+                                <div class="flex justify-between text-sm text-gray-500 mt-1">
+                                    <span>$500</span>
+                                    <span id="budget-display" class="font-semibold">$2,500</span>
+                                    <span>$10,000</span>
+                                </div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div class="bg-blue-50 p-3 rounded-lg">
+                                    <div class="font-semibold text-blue-800">Flights</div>
+                                    <div id="flight-cost" class="text-blue-600">$800</div>
+                                </div>
+                                <div class="bg-green-50 p-3 rounded-lg">
+                                    <div class="font-semibold text-green-800">Hotels</div>
+                                    <div id="hotel-cost" class="text-green-600">$1,200</div>
+                                </div>
+                                <div class="bg-purple-50 p-3 rounded-lg">
+                                    <div class="font-semibold text-purple-800">Activities</div>
+                                    <div id="activity-cost" class="text-purple-600">$400</div>
+                                </div>
+                                <div class="bg-yellow-50 p-3 rounded-lg">
+                                    <div class="font-semibold text-yellow-800">Other</div>
+                                    <div id="other-cost" class="text-yellow-600">$100</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Destination Suggestions -->
+                    <div class="travel-tool rounded-2xl p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                            🌍 Popular Destinations
+                        </h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" onclick="selectDestination('paris')">
+                                <span class="text-2xl">🇫🇷</span>
+                                <div>
+                                    <div class="font-semibold text-gray-800">Paris, France</div>
+                                    <div class="text-sm text-gray-600">From $899</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" onclick="selectDestination('tokyo')">
+                                <span class="text-2xl">🇯🇵</span>
+                                <div>
+                                    <div class="font-semibold text-gray-800">Tokyo, Japan</div>
+                                    <div class="text-sm text-gray-600">From $1,299</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" onclick="selectDestination('bali')">
+                                <span class="text-2xl">🇮🇩</span>
+                                <div>
+                                    <div class="font-semibold text-gray-800">Bali, Indonesia</div>
+                                    <div class="text-sm text-gray-600">From $799</div>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer" onclick="selectDestination('newyork')">
+                                <span class="text-2xl">🇺🇸</span>
+                                <div>
+                                    <div class="font-semibold text-gray-800">New York, USA</div>
+                                    <div class="text-sm text-gray-600">From $699</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Voice Settings -->
+                    <div class="travel-tool rounded-2xl p-6">
+                        <h3 class="text-xl font-bold text-gray-800 mb-4 flex items-center">
+                            🔊 Voice Settings
+                        </h3>
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Language</label>
+                                <select class="w-full p-2 border border-gray-300 rounded-lg">
+                                    <option>English (US)</option>
+                                    <option>English (UK)</option>
+                                    <option>Spanish</option>
+                                    <option>French</option>
+                                    <option>German</option>
+                                    <option>Japanese</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Voice Speed</label>
+                                <input type="range" min="0.5" max="2" step="0.1" value="1" class="w-full">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-2">Assistant Voice</label>
+                                <select class="w-full p-2 border border-gray-300 rounded-lg">
+                                    <option>Sarah (Female)</option>
+                                    <option>Emma (Female)</option>
+                                    <option>David (Male)</option>
+                                    <option>James (Male)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-900 text-white py-12">
+        <div class="container mx-auto px-6">
+            <div class="grid md:grid-cols-4 gap-8">
+                <div>
+                    <div class="flex items-center space-x-2 mb-4">
+                        <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
+                            <span class="text-white font-bold text-lg">V</span>
+                        </div>
+                        <span class="text-white font-bold text-xl font-serif">VoyageAI</span>
+                    </div>
+                    <p class="text-gray-400">
+                        Your intelligent travel companion, making dream destinations accessible through the power of AI and voice technology.
+                    </p>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold mb-4">Quick Links</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="index.html" class="hover:text-white transition-colors">Home</a></li>
+                        <li><a href="index.html#destinations" class="hover:text-white transition-colors">Destinations</a></li>
+                        <li><a href="index.html#features" class="hover:text-white transition-colors">Features</a></li>
+                        <li><a href="index.html#reviews" class="hover:text-white transition-colors">Reviews</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold mb-4">Support</h4>
+                    <ul class="space-y-2 text-gray-400">
+                        <li><a href="voice-assistant.html" class="hover:text-white transition-colors">Voice Assistant</a></li>
+                        <li><a href="#contact" class="hover:text-white transition-colors">Contact Us</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Help Center</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">Privacy Policy</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h4 class="font-bold mb-4">Newsletter</h4>
+                    <p class="text-gray-400 mb-4">Get the latest travel deals and AI updates</p>
+                    <div class="flex">
+                        <input type="email" placeholder="Your email" class="flex-1 px-4 py-2 rounded-l-full text-gray-800">
+                        <button class="bg-gradient-to-r from-pink-500 to-yellow-500 px-6 py-2 rounded-r-full hover:shadow-lg transition-all">
+                            Subscribe
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-800 mt-8 pt-8 text-center text-gray-400">
+                <p>&copy; 2024 VoyageAI. All rights reserved. Made with ❤️ for travelers worldwide.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="main.js"></script>
+</body>
+</html>
