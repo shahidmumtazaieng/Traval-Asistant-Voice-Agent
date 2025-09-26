@@ -1,0 +1,4 @@
+fastapi
+mangum>=0.10.0
+python-dotenv
+livekit-api

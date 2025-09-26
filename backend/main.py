@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, HTTPException
+from fastapi import FastAPI, WebSocket, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
@@ -28,9 +28,13 @@ app = FastAPI(
 )
 
 # Add CORS middleware with optimized settings
+# For Vercel deployment, we need to allow the Vercel frontend domain
+# In production, replace "*" with your actual frontend domain
+frontend_origin = os.getenv("FRONTEND_ORIGIN", "*")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[frontend_origin] if frontend_origin != "*" else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,13 +45,10 @@ app.add_middleware(
 # In-memory storage for sessions (in production, use a database)
 sessions: Dict[str, dict] = {}
 
-# Health check endpoint
-@app.get("/health", summary="Health Check", description="Check if the service is running")
+# Health check endpoint for Vercel
+@app.get("/api/health")
 async def health_check():
-    return JSONResponse(
-        content={"status": "healthy", "service": "TravelVoice AI Backend"},
-        status_code=200
-    )
+    return {"status": "healthy", "service": "TravelVoice AI Backend"}
 
 # Root endpoint
 @app.get("/", summary="API Root", description="Welcome message and API information")
@@ -172,12 +173,5 @@ async def process_websocket_message(session_id: str, message: str, websocket: We
 from fastapi.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        app, 
-        host=os.getenv("HOST", "0.0.0.0"), 
-        port=int(os.getenv("PORT", 8000)),
-        log_level="info",
-        workers=1,  # Adjust based on your server capacity
-    )
+# For Vercel deployment, we need to export the app
+# This is handled automatically by the @vercel/python builder

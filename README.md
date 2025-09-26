@@ -147,6 +147,19 @@ This will start:
 
 Note: LiveKit is now using a cloud service, so there's no need to run a local LiveKit server.
 
+## Vercel Deployment
+
+This project is configured for deployment on Vercel with proper CORS handling. See detailed instructions in:
+- [Vercel Deployment Guide](VERCEL_DEPLOYMENT.md)
+- [CORS System Design](CORS_DESIGN.md)
+- [Deployment Checklist](DEPLOYMENT_CHECKLIST.md)
+
+Key features:
+- Separate deployment of frontend and backend
+- Environment-based configuration
+- Secure CORS implementation
+- Vercel-specific optimizations
+
 ## Usage
 
 1. Start both the backend and frontend servers

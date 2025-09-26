@@ -11,3 +11,4 @@ python-multipart
 asyncio-mqtt
 google-generativeai
 numpy
+mangum>=0.10.0

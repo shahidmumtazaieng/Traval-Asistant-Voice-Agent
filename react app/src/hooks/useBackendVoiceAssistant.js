@@ -16,8 +16,9 @@ export const useBackendVoiceAssistant = () => {
       setConnectionStatus('connecting')
       setError(null)
       
-      // Get token from backend
-      const tokenResponse = await fetch('http://localhost:8000/api/token')
+      // Get token from backend using environment variable for API URL
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const tokenResponse = await fetch(`${API_URL}/api/token`)
       if (!tokenResponse.ok) {
         throw new Error(`Failed to get token: ${tokenResponse.status} ${tokenResponse.statusText}`)
       }
