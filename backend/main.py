@@ -1,75 +1,176 @@
-from fastapi import FastAPI, WebSocket, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse
 import os
+import sys
 from dotenv import load_dotenv
-import asyncio
-import json
-import logging
-from typing import Dict
-import uuid
-from livekit.api import AccessToken, VideoGrants
 
-# Load environment variables
-load_dotenv()
+# Load environment variables first
+
+load_dotenv(".env")  # Also try to load .env if .env.local doesn't exist
+
+# Only import FastAPI components at module level
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+import uvicorn
+from typing import Dict, Any
+from pydantic import BaseModel
+
+# Import LiveKit API components for token generation
+from livekit.api import AccessToken, VideoGrants
+import uuid
+import logging
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Create FastAPI app with optimized settings
-app = FastAPI(
-    title="Enterprise TravelVoice AI",
-    description="Voice AI Conversational Agent for Travel Assistance",
-    version="1.0.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
-)
+# Initialize FastAPI app
+app = FastAPI(title="Business Travel Assistant API", version="1.0.0")
 
-# Add CORS middleware with optimized settings
-# For Vercel deployment, we need to allow the Vercel frontend domain
-# In production, replace "*" with your actual frontend domain
-frontend_origin = os.getenv("FRONTEND_ORIGIN", "*")
+# Add CORS middleware to allow frontend connections
+frontend_origin = os.getenv("FRONTEND_ORIGIN", "http://localhost:3000")
+
+# Configure CORS origins
+if frontend_origin == "*":
+    # Development - allow all origins
+    origins = ["*"]
+    logger.info("CORS configured for development (allowing all origins)")
+else:
+    # Production - allow specific origin
+    origins = [frontend_origin]
+    logger.info(f"CORS configured for production (allowing origin: {frontend_origin})")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[frontend_origin] if frontend_origin != "*" else ["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["Content-Disposition"],
-    max_age=600,  # Cache preflight requests for 10 minutes
 )
 
-# In-memory storage for sessions (in production, use a database)
-sessions: Dict[str, dict] = {}
+# Pydantic models for request/response
+class SessionRequest(BaseModel):
+    user_id: str
+    preferences: Dict[str, Any] = {}
 
-# Health check endpoint for Vercel
-@app.get("/api/health")
-async def health_check():
-    return {"status": "healthy", "service": "TravelVoice AI Backend"}
+class SessionResponse(BaseModel):
+    session_id: str
+    status: str
+    message: str
 
-# Root endpoint
-@app.get("/", summary="API Root", description="Welcome message and API information")
-async def root():
-    return JSONResponse(
-        content={
-            "message": "Welcome to Enterprise TravelVoice AI API",
-            "version": "1.0.0",
-            "documentation": "/docs",
-        },
-        status_code=200
+class TravelQuery(BaseModel):
+    query: str
+    context: Dict[str, Any] = {}
+
+class TravelResponse(BaseModel):
+    response: str
+    action_required: bool = False
+    action_type: str = ""
+
+# Define the Assistant class without LiveKit dependencies
+class Assistant:
+    def __init__(self) -> None:
+        # Enhanced system prompt for business travel assistant
+        self.instructions = """You are a professional business travel assistant. 
+        Your role is to help business travelers with:
+        1. Flight bookings and itinerary management
+        2. Hotel reservations and recommendations
+        3. Transportation arrangements (taxis, rideshares, car rentals)
+        4. Travel expense tracking and reporting
+        5. Visa and documentation guidance
+        6. Weather updates for destinations
+        7. Currency conversion and payment methods
+        8. Business meeting scheduling across time zones
+        9. Local business services and facilities
+        10. Emergency assistance during travel
+        
+        Always be concise, professional, and helpful. 
+        Ask clarifying questions when needed.
+        Focus on business travel needs specifically."""
+
+# Only import LiveKit when needed (inside functions)
+def get_livekit_components():
+    """Safely import LiveKit components to avoid multiprocessing issues"""
+    try:
+        from livekit import agents
+        from livekit.agents import AgentSession, Agent, RoomInputOptions, WorkerOptions
+        from livekit.plugins import (
+            cartesia,
+            deepgram,
+            silero,
+            google,
+        )
+        from livekit.plugins.turn_detector.multilingual import MultilingualModel
+        return agents, AgentSession, Agent, RoomInputOptions, cartesia, deepgram, silero, MultilingualModel, google, WorkerOptions
+    except ImportError as e:
+        print(f"LiveKit import error: {e}")
+        return None, None, None, None, None, None, None, None, None, None
+
+async def entrypoint(ctx):
+    """LiveKit agent entrypoint - only called when RUN_AGENT=true"""
+    # Import LiveKit components only when needed
+    agents, AgentSession, Agent, RoomInputOptions, cartesia, deepgram, silero, MultilingualModel, google, _ = get_livekit_components()
+    
+    if not agents:
+        print("LiveKit components not available")
+        return
+    
+    class LiveKitAssistant(Agent):
+        def __init__(self) -> None:
+            super().__init__(instructions="""You are a professional business travel assistant. 
+            Your role is to help business travelers with:
+            1. Flight bookings and itinerary management
+            2. Hotel reservations and recommendations
+            3. Transportation arrangements (taxis, rideshares, car rentals)
+            4. Travel expense tracking and reporting
+            5. Visa and documentation guidance
+            6. Weather updates for destinations
+            7. Currency conversion and payment methods
+            8. Business meeting scheduling across time zones
+            9. Local business services and facilities
+            10. Emergency assistance during travel
+            
+            Always be concise, professional, and helpful. 
+            Ask clarifying questions when needed.
+            Focus on business travel needs specifically.""")
+
+    session = AgentSession(
+        stt=deepgram.STT(model="nova-3", language="multi"),
+        llm=google.LLM(model="gemini-2.0-flash-exp"),
+        tts=cartesia.TTS(model="sonic-2", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"),
+        vad=silero.VAD.load(),
+        turn_detection=MultilingualModel(),
     )
 
-# Token generation endpoint
-@app.get("/api/token", summary="Generate LiveKit Token", description="Generate a token for LiveKit connection")
+    await session.start(
+        room=ctx.room,
+        agent=LiveKitAssistant(),
+        room_input_options=RoomInputOptions(),
+    )
+
+    await session.generate_reply(
+        instructions="Welcome to your business travel assistant. How can I help with your travel plans today?"
+    )
+
+# FastAPI routes
+@app.get("/")
+async def root():
+    return {"message": "Business Travel Assistant API is running"}
+
+@app.get("/api/health")
+async def health_check():
+    return {"status": "healthy"}
+
+@app.get("/api/token")
 async def get_token():
     """Generate a token for LiveKit connection"""
     try:
         # Log the environment variables for debugging
-        api_key = os.getenv("LIVEKIT_API_KEY", "devkey")
-        api_secret = os.getenv("LIVEKIT_API_SECRET", "secret")
+        api_key = os.getenv("LIVEKIT_API_KEY")
+        api_secret = os.getenv("LIVEKIT_API_SECRET")
+        
+        if not api_key or not api_secret:
+            logger.error("LIVEKIT_API_KEY or LIVEKIT_API_SECRET not found in environment variables")
+            return {"error": "LiveKit API credentials not configured"}
+            
         logger.info(f"Generating token with API key: {api_key[:5]}...")  # Log first 5 chars for security
         
         # Create access token with optimized settings
@@ -79,99 +180,78 @@ async def get_token():
         ).with_identity(f"user_{uuid.uuid4().hex}").with_grants(
             VideoGrants(
                 room_join=True,
-                room="travel-voice-room",
+                room="business-travel-room",
             )
         ).to_jwt()
         
         logger.info("Token generated successfully")
-        return JSONResponse(
-            content={"token": token, "room": "travel-voice-room"},
-            status_code=200
-        )
+        return {"token": token, "room": "business-travel-room"}
     except Exception as e:
         logger.error(f"Error generating token: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate token")
+        return {"error": f"Failed to generate token: {str(e)}"}
 
-# WebSocket endpoint for real-time communication
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time communication"""
-    await websocket.accept()
-    session_id = str(uuid.uuid4())
-    sessions[session_id] = {"websocket": websocket, "transcript": []}
-    
-    try:
-        # Send connection confirmation
-        await websocket.send_text(json.dumps({"type": "connected", "session_id": session_id}))
-        
-        while True:
-            data = await websocket.receive_text()
-            # Process incoming messages
-            await process_websocket_message(session_id, data, websocket)
-    except Exception as e:
-        logger.error(f"WebSocket error: {e}")
-    finally:
-        if session_id in sessions:
-            del sessions[session_id]
+@app.post("/session/start", response_model=SessionResponse)
+async def start_session(request: SessionRequest):
+    """Initialize a new travel assistant session"""
+    return SessionResponse(
+        session_id=f"session_{request.user_id}",
+        status="active",
+        message="Travel assistant session started successfully"
+    )
 
-async def process_websocket_message(session_id: str, message: str, websocket: WebSocket):
-    """Process incoming WebSocket messages"""
-    try:
-        data = json.loads(message)
-        message_type = data.get("type")
-        
-        if message_type == "start_listening":
-            # Notify client that listening has started
-            await websocket.send_text(json.dumps({"type": "listening_started"}))
-            
-        elif message_type == "stop_listening":
-            # Notify client that listening has stopped
-            await websocket.send_text(json.dumps({"type": "listening_stopped"}))
-            
-        elif message_type == "user_transcript":
-            # Handle user transcript
-            transcript = data.get("transcript", "")
-            sessions[session_id]["transcript"].append({"speaker": "user", "text": transcript})
-            
-            # Notify client that we're processing
-            await websocket.send_text(json.dumps({"type": "processing_started"}))
-            
-            # Here you would typically call your LLM to generate a response
-            # For now, we'll simulate a response with a delay
-            await asyncio.sleep(1)  # Simulate processing time
-            ai_response = f"I heard you say: {transcript}. This is a simulated response from the backend."
-            sessions[session_id]["transcript"].append({"speaker": "ai", "text": ai_response})
-            
-            # Send AI response back to client
-            await websocket.send_text(
-                json.dumps({"type": "ai_response", "text": ai_response})
-            )
-            
-        elif message_type == "text_message":
-            # Handle text messages
-            text_content = data.get("content", "")
-            sessions[session_id]["transcript"].append({"speaker": "user", "text": text_content})
-            
-            # Notify client that we're processing
-            await websocket.send_text(json.dumps({"type": "processing_started"}))
-            
-            # Simulate processing time
-            await asyncio.sleep(1)  # Simulate processing time
-            ai_response = f"I received your message: {text_content}. This is a simulated response."
-            sessions[session_id]["transcript"].append({"speaker": "ai", "text": ai_response})
-            
-            # Send AI response back to client
-            await websocket.send_text(
-                json.dumps({"type": "ai_response", "text": ai_response})
-            )
-            
-    except Exception as e:
-        logger.error(f"Error processing message: {e}")
-        await websocket.send_text(json.dumps({"type": "error", "message": "Error processing message"}))
+@app.post("/session/end", response_model=SessionResponse)
+async def end_session(request: SessionRequest):
+    """End the current travel assistant session"""
+    return SessionResponse(
+        session_id=f"session_{request.user_id}",
+        status="inactive",
+        message="Travel assistant session ended successfully"
+    )
 
-# Optimization: Add middleware for request compression
-from fastapi.middleware.gzip import GZipMiddleware
-app.add_middleware(GZipMiddleware, minimum_size=1000)
+@app.post("/travel/query", response_model=TravelResponse)
+async def handle_travel_query(query: TravelQuery):
+    """Handle travel-related queries"""
+    return TravelResponse(
+        response=f"I understand you're asking about: {query.query}. I'll help you with that as a business travel assistant.",
+        action_required=False
+    )
 
-# For Vercel deployment, we need to export the app
-# This is handled automatically by the @vercel/python builder
+@app.get("/travel/destinations")
+async def get_popular_destinations():
+    """Get list of popular business travel destinations"""
+    return {
+        "destinations": [
+            {"name": "New York", "country": "USA", "business_index": 9.5},
+            {"name": "London", "country": "UK", "business_index": 9.3},
+            {"name": "Tokyo", "country": "Japan", "business_index": 9.0},
+            {"name": "Singapore", "country": "Singapore", "business_index": 9.2},
+            {"name": "Frankfurt", "country": "Germany", "business_index": 8.8},
+        ]
+    }
+
+@app.get("/travel/services")
+async def get_travel_services():
+    """Get list of available travel services"""
+    return {
+        "services": [
+            {"id": "flights", "name": "Flight Booking", "description": "Book business class flights"},
+            {"id": "hotels", "name": "Hotel Reservations", "description": "Reserve business-friendly hotels"},
+            {"id": "transport", "name": "Transportation", "description": "Arrange airport transfers and local transport"},
+            {"id": "visa", "name": "Visa Assistance", "description": "Get visa requirements and assistance"},
+            {"id": "expenses", "name": "Expense Tracking", "description": "Track and report travel expenses"},
+        ]
+    }
+
+if __name__ == "__main__":
+    # If running directly, start the LiveKit agent
+    if os.getenv("RUN_AGENT", "false").lower() == "true":
+        # Import LiveKit components only when needed for the agent
+        agents, _, _, _, _, _, _, _, _, WorkerOptions = get_livekit_components()
+        if agents and WorkerOptions:
+            agents.cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint))
+        else:
+            print("LiveKit components not available. Cannot start agent.")
+            sys.exit(1)
+    else:
+        # Otherwise run the FastAPI server
+        uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

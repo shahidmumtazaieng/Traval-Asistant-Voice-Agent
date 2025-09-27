@@ -8,18 +8,49 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - LIVEKIT_URL=wss://voyageai-3t6pxcz2.livekit.cloud
-      - LIVEKIT_API_KEY=APIbG43kQfcWwgN
-      - LIVEKIT_API_SECRET=STno2Ssz2hfZQVGv7uBuwt02becdrVM4yfSzsmsbapgA
+      - LIVEKIT_URL=wss://traval-asistent-t0ab2743.livekit.cloud
+      - LIVEKIT_API_KEY=APIn2LfwPTmLyEf
+      - LIVEKIT_API_SECRET=clah5xERYeeahHMnVQnhKRcsp4DASeEYfx1N3GhvqGjD
       - DEEPGRAM_API_KEY=462ef79f7416fd6ee414a4851c6ffa0acc2def0c
       - CARTESIA_API_KEY=sk_car_gSSLXcAQvqQQYRDgYQ67YX
       - GOOGLE_API_KEY=AIzaSyBN7QW7yE4kfQOshNMmegyAt0mZYXhvqnQ
+      - ANAM_API_KEY=MTBhNDc1MDAtMzM3OS00YzA2LWI5ZjEtMGZmMWE3ODk0MTkw
+      - ANAM_AVATAR_ID=dd861b5f-b674-4488-a15f-a602d81acb9f
       - HOST=0.0.0.0
       - PORT=8000
     volumes:
       - ./backend:/app
     networks:
       - app-network
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+        reservations:
+          cpus: '0.5'
+          memory: 512M
+
+  voice-agent:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - LIVEKIT_URL=wss://traval-asistent-t0ab2743.livekit.cloud
+      - LIVEKIT_API_KEY=APIn2LfwPTmLyEf
+      - LIVEKIT_API_SECRET=clah5xERYeeahHMnVQnhKRcsp4DASeEYfx1N3GhvqGjD
+      - DEEPGRAM_API_KEY=462ef79f7416fd6ee414a4851c6ffa0acc2def0c
+      - CARTESIA_API_KEY=sk_car_gSSLXcAQvqQQYRDgYQ67YX
+      - GOOGLE_API_KEY=AIzaSyBN7QW7yE4kfQOshNMmegyAt0mZYXhvqnQ
+      - ANAM_API_KEY=MTBhNDc1MDAtMzM3OS00YzA2LWI5ZjEtMGZmMWE3ODk0MTkw
+      - ANAM_AVATAR_ID=dd861b5f-b674-4488-a15f-a602d81acb9f
+    volumes:
+      - ./backend:/app
+    networks:
+      - app-network
+    command: ["python", "voice_agent.py", "dev"]
+    depends_on:
+      - backend
     deploy:
       resources:
         limits:
@@ -40,6 +71,7 @@ services:
       - /app/node_modules
     depends_on:
       - backend
+      - voice-agent
     networks:
       - app-network
     deploy:

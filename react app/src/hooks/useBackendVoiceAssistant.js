@@ -25,7 +25,7 @@ export const useBackendVoiceAssistant = () => {
       const tokenData = await tokenResponse.json()
       
       // Connect to WebSocket using the correct LiveKit URL from environment
-      const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'ws://localhost:7880';
+      const LIVEKIT_URL = import.meta.env.VITE_LIVEKIT_URL || 'wss://traval-asistent-t0ab2743.livekit.cloud';
       const wsUrl = `${LIVEKIT_URL}?access_token=${tokenData.token}`
       
       wsRef.current = new WebSocket(wsUrl)

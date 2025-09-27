@@ -1,44 +1,42 @@
+#!/usr/bin/env python3
+"""
+Test script to verify backend API is working
+"""
+
 import requests
-import json
+import os
 
-def test_health_endpoint():
-    """Test the health check endpoint"""
+def test_api():
+    """Test the backend API endpoints"""
+    api_url = "http://localhost:8000"
+    
     try:
-        response = requests.get("http://localhost:8000/health")
-        print(f"Health check: {response.status_code}")
-        print(f"Response: {response.json()}")
-        return response.status_code == 200
-    except Exception as e:
-        print(f"Health check failed: {e}")
-        return False
-
-def test_token_endpoint():
-    """Test the token generation endpoint"""
-    try:
-        response = requests.get("http://localhost:8000/api/token")
-        print(f"Token endpoint: {response.status_code}")
+        # Test health endpoint
+        print("Testing health endpoint...")
+        response = requests.get(f"{api_url}/api/health")
         if response.status_code == 200:
             data = response.json()
-            print(f"Token generated: {data.get('token', 'No token found')[:20]}...")
-            return True
+            print(f"Health check passed: {data}")
         else:
-            print(f"Error: {response.text}")
-            return False
+            print(f"Health check failed with status {response.status_code}")
+            
+        # Test token endpoint
+        print("Testing token endpoint...")
+        response = requests.get(f"{api_url}/api/token")
+        if response.status_code == 200:
+            data = response.json()
+            print(f"Token endpoint passed: {list(data.keys())}")
+            if 'token' in data:
+                print("Token generated successfully")
+                return data['token']
+            else:
+                print("Token not found in response")
+        else:
+            print(f"Token endpoint failed with status {response.status_code}")
+            print(f"Response: {response.text}")
+            
     except Exception as e:
-        print(f"Token endpoint test failed: {e}")
-        return False
+        print(f"Error testing API: {e}")
 
 if __name__ == "__main__":
-    print("Testing Voice AI Backend API")
-    print("=" * 40)
-    
-    health_ok = test_health_endpoint()
-    print()
-    token_ok = test_token_endpoint()
-    
-    print()
-    print("=" * 40)
-    if health_ok and token_ok:
-        print("All tests passed!")
-    else:
-        print("Some tests failed!")
+    test_api()

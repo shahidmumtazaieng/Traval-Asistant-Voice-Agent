@@ -1,183 +1,154 @@
+#!/usr/bin/env python3
+"""
+Voice Agent for Business Travel Assistant
+This script runs the LiveKit voice agent that handles real-time voice processing.
+"""
+
 import asyncio
 import logging
-from typing import Optional
-from livekit import rtc
-from livekit.agents import (
-    JobContext,
-    JobProcess,
-    WorkerOptions,
-    cli,
-    stt,
-    tts,
-    transcription,
-    ipc_encodings
-)
-from livekit.agents.pipeline import VoicePipelineAgent
-from livekit.agents.voice_assistant import VoiceAssistant
-import google.generativeai as genai
-from dotenv import load_dotenv
 import os
+import sys
+from dotenv import load_dotenv
+import argparse
 
 # Load environment variables
-load_dotenv()
+load_dotenv(".env.local")
+load_dotenv(".env")
 
-# Configure logging
-logger = logging.getLogger(__name__)
+# Configure logging first
 logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# Initialize Google Gemini
-GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-if not GOOGLE_API_KEY:
-    raise ValueError("GOOGLE_API_KEY environment variable is required")
+# Import LiveKit components
+try:
+    from livekit import agents
+    from livekit.agents import AutoSubscribe, JobContext, WorkerOptions
+    from livekit.plugins import cartesia, deepgram, silero, google
     
-genai.configure(api_key=GOOGLE_API_KEY)
-gemini_model = genai.GenerativeModel('gemini-pro')
-
-# Try to import Deepgram and Cartesia plugins
-try:
-    from livekit.plugins import deepgram
-    DEEPGRAM_AVAILABLE = True
+    # Only import turn detector if available
+    try:
+        from livekit.plugins.turn_detector.multilingual import MultilingualModel
+        TURN_DETECTOR_AVAILABLE = True
+    except ImportError:
+        TURN_DETECTOR_AVAILABLE = False
+        logger.warning("Turn detector not available, using default settings")
+        
+    LIVEKIT_AVAILABLE = True
 except ImportError as e:
-    logger.error(f"Failed to import Deepgram plugin: {e}")
-    DEEPGRAM_AVAILABLE = False
+    logger.error(f"LiveKit import error: {e}")
+    LIVEKIT_AVAILABLE = False
 
-try:
-    from livekit.plugins import cartesia
-    CARTESIA_AVAILABLE = True
-except ImportError as e:
-    logger.error(f"Failed to import Cartesia plugin: {e}")
-    CARTESIA_AVAILABLE = False
+class BusinessTravelAssistant:
+    def __init__(self) -> None:
+        self.instructions = """You are a professional business travel assistant. 
+        Your role is to help business travelers with:
+        1. Flight bookings and itinerary management
+        2. Hotel reservations and recommendations
+        3. Transportation arrangements (taxis, rideshares, car rentals)
+        4. Travel expense tracking and reporting
+        5. Visa and documentation guidance
+        6. Weather updates for destinations
+        7. Currency conversion and payment methods
+        8. Business meeting scheduling across time zones
+        9. Local business services and facilities
+        10. Emergency assistance during travel
+        
+        Always be concise, professional, and helpful. 
+        Ask clarifying questions when needed.
+        Focus on business travel needs specifically."""
 
-class OptimizedVoiceAgent:
-    def __init__(self, ctx: JobContext):
-        self.ctx = ctx
-        self.system_prompt = "You are a friendly travel assistant. Help users plan trips, recommend destinations, and provide travel advice. Be concise and helpful. Respond in under 30 seconds."
+async def entrypoint(ctx: JobContext):
+    """Entrypoint for the LiveKit voice agent"""
+    logger.info("Starting Business Travel Assistant voice agent")
+    
+    try:
+        # Connect to the room first
+        logger.info("Connecting to room...")
+        await ctx.connect(auto_subscribe=AutoSubscribe.AUDIO_ONLY)
+        logger.info("Connected to room successfully")
         
-        # Initialize Deepgram STT with low latency settings
-        if DEEPGRAM_AVAILABLE:
-            self.stt = deepgram.STT(
-                model="nova-3",  # Use the latest model for better accuracy
-                language="en-US",
-                smart_format=True,
-                endpointing=200,  # Lower endpointing for faster response (milliseconds)
-                utterance_end_ms=800,  # Faster utterance detection
-            )
+        # Initialize components with error handling
+        logger.info("Initializing STT component...")
+        stt = deepgram.STT(model="nova-3", language="multi")
+        
+        logger.info("Initializing LLM component...")
+        llm_agent = google.LLM(model="gemini-2.0-flash-exp")
+        
+        logger.info("Initializing TTS component...")
+        tts = cartesia.TTS(model="sonic-2", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02")
+        
+        logger.info("Loading VAD component...")
+        vad = silero.VAD.load()
+        
+        # Create the agent session with all components
+        session_args = {
+            "stt": stt,
+            "llm": llm_agent,
+            "tts": tts,
+            "vad": vad,
+        }
+        
+        # Add turn detection if available
+        if TURN_DETECTOR_AVAILABLE:
+            logger.info("Initializing turn detection...")
+            session_args["turn_detection"] = MultilingualModel()
         else:
-            logger.error("Deepgram plugin not available, falling back to default STT")
-            self.stt = stt.STT()  # Fallback to default STT
+            logger.warning("Running without turn detection")
         
-        # Initialize Cartesia TTS
-        if CARTESIA_AVAILABLE:
-            self.tts = cartesia.TTS(
-                model="sonic-2",  # Use the latest model
-                voice="f786b574-daa5-4673-aa0c-cbe3e8534c02",  # Default voice ID
-            )
-        else:
-            logger.error("Cartesia plugin not available, falling back to default TTS")
-            self.tts = tts.TTS()  # Fallback to default TTS
+        logger.info("Creating agent session...")
+        session = agents.AgentSession(**session_args)
         
-        # Initialize voice assistant with optimized settings
-        self.assistant = VoiceAssistant(
-            vad=None,  # Using default VAD
-            stt=self.stt,
-            llm=self._llm_stream,
-            tts=self.tts,
-            system_prompt=self.system_prompt,
-            # Optimized settings for low latency
-            allow_interruptions=True,  # Allow interruptions for natural conversation
-            interrupt_speech_duration=0.6,  # Faster interruption detection
-            interrupt_min_words=3,  # Minimum words before interruption allowed
-            min_endpointing_delay=0.1,  # Faster endpointing
+        # Start the session
+        logger.info("Starting session...")
+        await session.start(
+            room=ctx.room,
+            agent=BusinessTravelAssistant(),
         )
         
-    async def start(self):
-        # Connect to room with optimized settings
-        await self.ctx.connect(
-            auto_subscribe=rtc.TrackSubscriptionPolicy.SUBSCRIBE_ALL,
-            rtc_config=rtc.RtcConfiguration(
-                ice_servers=[
-                    rtc.IceServer(urls=["stun:stun.l.google.com:19302"])
-                ]
-            )
+        # Generate initial reply
+        logger.info("Generating initial reply...")
+        await session.generate_reply(
+            instructions="Welcome to your business travel assistant. How can I help with your travel plans today?"
         )
         
-        # Start the assistant
-        self.assistant.start(ctx=self.ctx)
-        logger.info("Optimized voice agent started")
-        
-        # Set up participant callbacks
-        self.ctx.room.on("participant_connected", self._on_participant_connected)
-        self.ctx.room.on("participant_disconnected", self._on_participant_disconnected)
+        logger.info("Business Travel Assistant voice agent started successfully")
         
         # Keep the agent running
         try:
             while True:
                 await asyncio.sleep(1)
-        except KeyboardInterrupt:
-            logger.info("Agent shutting down...")
-            
-    def _on_participant_connected(self, participant: rtc.RemoteParticipant):
-        logger.info(f"Participant connected: {participant.identity}")
+        except asyncio.CancelledError:
+            logger.info("Voice agent shutting down...")
+            await session.aclose()
         
-    def _on_participant_disconnected(self, participant: rtc.RemoteParticipant):
-        logger.info(f"Participant disconnected: {participant.identity}")
-        
-    async def _llm_stream(self, chat_ctx: rtc.ChatContext):
-        """Generate streaming response from Google Gemini with optimized performance"""
-        # Convert chat context to Gemini format
-        messages = []
-        for msg in chat_ctx.messages:
-            if msg.role == "system":
-                # Add system prompt as a user message at the beginning
-                messages.append({"role": "user", "parts": [msg.content]})
-                messages.append({"role": "model", "parts": ["Understood. I'll help as a travel assistant with concise responses."]})
-            elif msg.role == "user":
-                messages.append({"role": "user", "parts": [msg.content]})
-            elif msg.role == "assistant":
-                messages.append({"role": "model", "parts": [msg.content]})
-        
-        # Add system prompt if not present
-        if not any(msg["role"] == "user" and "travel assistant" in str(msg["parts"]) for msg in messages):
-            messages.insert(0, {"role": "user", "parts": [self.system_prompt]})
-            messages.insert(1, {"role": "model", "parts": ["Understood. I'll help as a travel assistant with concise responses."]})
-        
-        try:
-            # Create the chat session with optimized parameters
-            chat = gemini_model.start_chat(history=messages[:-1])  # Exclude the last user message
-            
-            # Get response for the latest user message
-            user_message = messages[-1]["parts"][0] if messages else ""
-            if user_message:
-                # Use optimized generation config for lower latency
-                response = await asyncio.get_event_loop().run_in_executor(
-                    None, 
-                    lambda: chat.send_message(
-                        user_message, 
-                        stream=True,
-                        generation_config=genai.GenerationConfig(
-                            max_output_tokens=200,  # Limit response length for faster generation
-                            temperature=0.7,  # Balanced creativity
-                            top_p=0.9,
-                            top_k=40,
-                        )
-                    )
-                )
-                
-                # Stream response with minimal buffering
-                for chunk in response:
-                    if chunk.text:
-                        yield chunk.text
-        except Exception as e:
-            logger.error(f"Error in LLM stream: {e}")
-            yield "I'm sorry, I encountered an error. Could you please repeat that?"
+    except Exception as e:
+        logger.error(f"Error starting voice agent: {e}", exc_info=True)
+        raise
 
-async def entrypoint(ctx: JobContext):
-    agent = OptimizedVoiceAgent(ctx)
-    await agent.start()
-
-def process_work(process: JobProcess):
-    # Any initialization code can go here
-    pass
+def main():
+    """Main entry point"""
+    # Set up argument parser
+    parser = argparse.ArgumentParser(description="Business Travel Assistant Voice Agent")
+    parser.add_argument("command", nargs="?", default="start", choices=["start", "dev"], 
+                       help="Command to run (start or dev)")
+    
+    args = parser.parse_args()
+    
+    logger.info(f"Initializing Business Travel Assistant voice agent with command: {args.command}")
+    
+    if not LIVEKIT_AVAILABLE:
+        logger.error("LiveKit components not available. Please check your installation.")
+        sys.exit(1)
+    
+    try:
+        # Run the agent with simplified options
+        logger.info("Starting LiveKit worker...")
+        agents.cli.run_app(WorkerOptions(
+            entrypoint_fnc=entrypoint
+        ))
+    except Exception as e:
+        logger.error(f"Failed to start voice agent: {e}", exc_info=True)
+        sys.exit(1)
 
 if __name__ == "__main__":
-    cli.run_app(WorkerOptions(entrypoint_fnc=entrypoint, process_fnc=process_work))
+    main()

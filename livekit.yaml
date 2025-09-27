@@ -13,8 +13,8 @@ logging:
   level: info
 
 apis:
-  - api_key: "devkey"
-    api_secret: "secret"
+  - api_key: "APIbG43kQfcWwgN"
+    api_secret: "STno2Ssz2hfZQVGv7uBuwt02becdrVM4yfSzsmsbapgA"
     
 room:
   # 1 hour default room timeout

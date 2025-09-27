@@ -1,12 +1,13 @@
-# Enterprise TravelVoice AI
+# Business TravelVoice AI
 
-An enterprise-level Voice AI Conversational Agent for travel assistance, built with LiveKit, FastAPI (Python) backend, and React frontend. This application enables real-time, natural voice conversations with an AI travel assistant optimized for low latency and high accuracy.
+An enterprise-level Voice AI Conversational Agent for business travel assistance, built with LiveKit, FastAPI (Python) backend, and React frontend. This application enables real-time, natural voice conversations with an AI business travel assistant optimized for low latency and high accuracy.
 
 ## Features
 
-- **Real-time Voice Conversation**: Enterprise-grade voice communication with AI travel assistant
+- **Real-time Voice Conversation**: Enterprise-grade voice communication with AI business travel assistant
+- **Professional Assistant Interface**: Clean UI with customer support representative visualization
 - **Optimized Voice Pipeline**: Low-latency STT → LLM → TTS with accuracy enhancements
-- **Travel-Focused UI**: Enterprise travel-themed interface with insights dashboard
+- **Business Travel Focus**: Specialized in flight bookings, hotel reservations, and travel logistics
 - **Turn-taking Logic**: Prevents overlapping speech for natural conversation flow
 - **Performance Optimized**: Configured for minimal latency and maximum responsiveness
 - **LiveKit Integration**: Real-time audio streaming with adaptive streaming
@@ -14,12 +15,13 @@ An enterprise-level Voice AI Conversational Agent for travel assistance, built w
 ## Tech Stack
 
 - **Backend**: FastAPI (Python) with performance optimizations
-- **Frontend**: React with Vite and travel-themed UI
+- **Frontend**: React with Vite and business travel-themed UI
 - **Real-time Communication**: LiveKit Cloud Service
 - **AI Services**: 
   - Google Gemini (LLM)
   - Deepgram (STT)
   - Cartesia (TTS)
+  - Multilingual Turn Detection
 
 ## Prerequisites
 
@@ -39,7 +41,7 @@ An enterprise-level Voice AI Conversational Agent for travel assistance, built w
 ### Accuracy Enhancements
 - Deepgram Nova-3 model for superior STT accuracy
 - Smart formatting for better transcription quality
-- Context-aware LLM responses with travel domain expertise
+- Context-aware LLM responses with business travel domain expertise
 
 ### Resource Efficiency
 - Adaptive streaming for optimal bandwidth usage
@@ -56,6 +58,23 @@ An enterprise-level Voice AI Conversational Agent for travel assistance, built w
    ```bash
    docker-compose up
    ```
+
+### Quick Start with Windows Batch Script
+
+For Windows users, you can use the provided batch script to start all services:
+
+1. Update the `.env` files with your credentials (see Manual Setup section below)
+2. Run the development script:
+   ```cmd
+   start-dev.bat
+   ```
+
+This will automatically start:
+- Backend API server
+- Voice agent
+- Frontend development server
+
+Note: Make sure you have Python, Node.js, and LiveKit server installed and added to your PATH.
 
 ### Manual Setup
 
@@ -77,35 +96,37 @@ An enterprise-level Voice AI Conversational Agent for travel assistance, built w
    pip install -r requirements.txt
    ```
 
-4. Update the `.env` file with your credentials:
+4. Create a `.env` file in the backend directory with your credentials:
    ```env
    # LiveKit Configuration
+   LIVEKIT_API_KEY=devkey
+   LIVEKIT_API_SECRET=secret
    LIVEKIT_URL=wss://your-livekit-url
-   LIVEKIT_API_KEY=your_api_key
-   LIVEKIT_API_SECRET=your_api_secret
 
-   # Deepgram Configuration (for STT)
-   DEEPGRAM_API_KEY=your_deepgram_api_key
+   # Google Configuration (required)
+   GOOGLE_API_KEY=your_google_api_key_here
 
-   # Cartesia Configuration (for TTS)
-   CARTESIA_API_KEY=your_cartesia_api_key
+   # Deepgram Configuration
+   DEEPGRAM_API_KEY=your_deepgram_api_key_here
 
-   # Google Gemini Configuration
-   GOOGLE_API_KEY=your_google_api_key
+   # Cartesia Configuration
+   CARTESIA_API_KEY=your_cartesia_api_key_here
 
-   # Application Configuration
-   HOST=localhost
-   PORT=8000
+   # CORS Configuration
+   FRONTEND_ORIGIN=http://localhost:3000
+
+   # Development Mode
+   ENVIRONMENT=development
    ```
 
-5. Run the backend:
+5. Run the backend API server:
    ```bash
    python main.py
    ```
 
-6. In a separate terminal, run the LiveKit agent:
+6. In a separate terminal, run the LiveKit voice agent:
    ```bash
-   python voice_agent.py dev
+   python voice_agent.py
    ```
 
 #### Frontend Setup
@@ -122,7 +143,12 @@ An enterprise-level Voice AI Conversational Agent for travel assistance, built w
 
 3. Create a `.env` file in the frontend directory:
    ```env
+   # LiveKit Configuration
    VITE_LIVEKIT_URL=wss://your-livekit-url
+   VITE_API_URL=http://localhost:8000
+
+   # Development Mode
+   NODE_ENV=development
    ```
 
 4. Run the frontend:
@@ -162,23 +188,24 @@ Key features:
 
 ## Usage
 
-1. Start both the backend and frontend servers
-2. Open your browser to `http://localhost:3000`
-3. Click "Connect" to join the voice conversation
-4. Speak naturally when prompted about travel topics
-5. The AI will respond with voice and text transcript
-6. View travel insights in the dashboard panel
+1. Start both the backend API server and voice agent
+2. Start the frontend development server
+3. Open your browser to `http://localhost:3000`
+4. Navigate to the voice assistant page
+5. Click the microphone button to start speaking
+6. The AI will respond with voice and text transcript
+7. View travel insights in the dashboard panel
 
 ## Enterprise UI Features
 
 ### Travel Dashboard
 - **Conversation Transcript**: Real-time display of user and AI interactions
-- **Travel Insights Panel**: Shows top destinations, flight tips, and hotel advice
+- **Travel Insights Panel**: Shows business travel recommendations and tips
 - **Connection Status**: Real-time quality and participant indicators
 - **Responsive Design**: Works on desktop and mobile devices
 
 ### Visual Design
-- Professional travel-themed color scheme (blues and reds)
+- Professional business travel-themed color scheme (blues and purples)
 - Clean, modern interface with intuitive controls
 - Animated feedback for speaking indicators
 - Card-based layout for information organization
@@ -189,13 +216,13 @@ Key features:
 .
 ├── backend/
 │   ├── main.py              # FastAPI application with optimizations
-│   ├── voice_agent.py       # Optimized LiveKit voice agent
+│   ├── voice_agent.py       # LiveKit voice agent implementation
 │   ├── requirements.txt     # Python dependencies
 │   └── .env                 # Environment variables
 ├── react app/
 │   ├── src/
-│   │   ├── App.jsx          # Travel-themed React component
-│   │   └── App.css          # Travel-themed styling
+│   │   ├── App.jsx          # Business travel-themed React component
+│   │   └── App.css          # Business travel-themed styling
 │   ├── package.json         # Frontend dependencies
 │   └── .env                 # Frontend environment variables
 ├── livekit.yaml             # LiveKit server configuration (for local development)
@@ -209,8 +236,9 @@ Key features:
 ### Voice Pipeline
 
 1. **Speech-to-Text (STT)**: Deepgram Nova-3 with optimized endpointing
-2. **AI Model (LLM)**: Google Gemini Pro with travel domain expertise
-3. **Text-to-Speech (TTS)**: Cartesia Sonic-2 with high-quality voices
+2. **AI Model (LLM)**: Google Gemini Pro with business travel domain expertise
+3. **Text-to-Speech (TTS)**: Cartesia with professional voice
+4. **Turn Detection**: Multilingual turn detection for natural conversation flow
 
 ### Turn-taking Logic
 
@@ -219,3 +247,11 @@ The application implements turn-taking logic to:
 - Trigger AI response generation with minimal delay
 - Prevent overlapping speech between user and AI
 - Allow interruptions for natural conversation flow
+
+### Assistant Interface
+
+The application features a professional customer support interface:
+- Clean visualization with business-themed color scheme
+- Audio visualization bars for real-time feedback
+- Professional voice for business communication
+- Responsive design for all device types
